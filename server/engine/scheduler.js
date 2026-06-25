@@ -124,6 +124,26 @@ function generateSchedule(weekStart, db) {
     }
   }
 
+  // --- Pre-schedule constrained priority employees (days_allowed + exempt_day_cap) ---
+  // Lock them into their specific allowed days before the general pool competes.
+  // Only applies to employees with explicit day restrictions (e.g. James Mon-Wed).
+  // Colton (no days_allowed) is NOT in this pass — he fills naturally via the main loop.
+  for (const emp of lineEmployees.filter(e => e.exempt_day_cap && e.days_allowed)) {
+    const allowed = JSON.parse(emp.days_allowed);
+    const shiftType = emp.am_only ? 'AM' : emp.pm_only ? 'PM' : 'AM';
+    for (const d of allowed) {
+      if (shiftsThisWeek[emp.id] >= 3) break;
+      const date = addDays(weekStart, d);
+      if (new Date(date + 'T12:00:00Z').getDay() === 0) continue;
+      if (holidays.includes(date)) continue;
+      if (isAssigned(emp.id, date)) continue;
+      const avail = avMap[emp.id]?.[d];
+      if (avail === 'X') continue;
+      schedule.push({ employee_id: emp.id, shift_date: date, shift_type: shiftType, is_manual_override: 0 });
+      shiftsThisWeek[emp.id]++;
+    }
+  }
+
   // --- Main loop: Mon-Sat (Sunday handled above) ---
   for (let d = 0; d < 7; d++) {
     const date = addDays(weekStart, d);
@@ -179,13 +199,12 @@ function generateSchedule(weekStart, db) {
       }
     }
 
-    // Count manual override coverage for this day (so "7-1" etc. credit toward AM/PM)
-    const todayManualLine = schedule.filter(
-      (s) => s.shift_date === date && s.is_manual_override &&
-             lineEmployees.some((e) => e.id === s.employee_id)
+    // Count all already-scheduled line shifts for this day (manual overrides + pre-scheduled)
+    const todayLine = schedule.filter(
+      (s) => s.shift_date === date && lineEmployees.some((e) => e.id === s.employee_id)
     );
-    let amFilled = todayManualLine.filter((s) => shiftCovers(s.shift_type, 'AM')).length;
-    let pmFilled = todayManualLine.filter((s) => shiftCovers(s.shift_type, 'PM')).length;
+    let amFilled = todayLine.filter((s) => shiftCovers(s.shift_type, 'AM')).length;
+    let pmFilled = todayLine.filter((s) => shiftCovers(s.shift_type, 'PM')).length;
 
     // --- AM openers ---
     const amCandidates = lineEmployees
