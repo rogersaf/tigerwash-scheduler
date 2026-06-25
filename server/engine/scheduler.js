@@ -101,19 +101,32 @@ function generateSchedule(weekStart, db) {
     if (holidays.includes(date)) continue;
 
     // --- Manager ---
-    // Angel is the primary auto-scheduled manager — max 5 days/week (2 days off).
-    // Nick is NEVER auto-scheduled — his shifts are always manual overrides.
-    // On Angel's days off, Nick covering is fine and expected; no "primary" label anywhere.
+    // Both Angel and Nick are auto-scheduled as MANAGER, max 5 days each (2 days off).
+    // Angel goes first — on her off days Nick fills in. Between them every day has a manager.
+    // Coverage flags fire without either, but the schedule should hold with Angel + crew alone.
     let managerOn = managerOnDate(date);
+
+    const nick = employees.find((e) => e.name === 'Nick');
 
     const angelDaysScheduled = schedule.filter(
       (s) => s.employee_id === angel?.id && shiftCategory(s.shift_type) !== 'OFF'
+    ).length;
+    const nickDaysScheduled = schedule.filter(
+      (s) => s.employee_id === nick?.id && shiftCategory(s.shift_type) !== 'OFF'
     ).length;
 
     if (!managerOn && angel && angelDaysScheduled < 5 && !isAssigned(angel.id, date)) {
       const a = avMap[angel.id]?.[d];
       if (a !== 'X') {
         schedule.push({ employee_id: angel.id, shift_date: date, shift_type: 'MANAGER', is_manual_override: 0 });
+        managerOn = true;
+      }
+    }
+
+    if (!managerOn && nick && nickDaysScheduled < 5 && !isAssigned(nick.id, date)) {
+      const a = avMap[nick.id]?.[d];
+      if (a !== 'X') {
+        schedule.push({ employee_id: nick.id, shift_date: date, shift_type: 'MANAGER', is_manual_override: 0 });
         managerOn = true;
       }
     }
