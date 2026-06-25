@@ -195,6 +195,9 @@ function generateSchedule(weekStart, db) {
           if (a.weekend_weighted && !b.weekend_weighted) return -1;
           if (!a.weekend_weighted && b.weekend_weighted) return 1;
         }
+        // Priority employees (exempt_day_cap) go first
+        if (a.exempt_day_cap && !b.exempt_day_cap) return -1;
+        if (!a.exempt_day_cap && b.exempt_day_cap) return 1;
         return shiftsThisWeek[a.id] - shiftsThisWeek[b.id];
       });
 
@@ -214,6 +217,9 @@ function generateSchedule(weekStart, db) {
           if (a.weekend_weighted && !b.weekend_weighted) return -1;
           if (!a.weekend_weighted && b.weekend_weighted) return 1;
         }
+        // Priority employees (exempt_day_cap) go first
+        if (a.exempt_day_cap && !b.exempt_day_cap) return -1;
+        if (!a.exempt_day_cap && b.exempt_day_cap) return 1;
         return shiftsThisWeek[a.id] - shiftsThisWeek[b.id];
       });
 
