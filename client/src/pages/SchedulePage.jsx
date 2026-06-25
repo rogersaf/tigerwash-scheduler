@@ -31,7 +31,7 @@ function fmtHour(h) {
   return h > 12 ? `${h - 12}pm` : `${h}am`;
 }
 function formatShiftTime(type) {
-  const STANDARD = { AM: '7am–2pm', PM: '2pm–close', MID: '11am–6pm', MANAGER: '8am–4pm', OFF: 'Off' };
+  const STANDARD = { AM: '7am–2pm', PM: '2pm–close', MID: '11am–6pm', MANAGER: '8am–4pm', TRAINING: '8am–4pm', OFF: 'Off' };
   if (STANDARD[type] !== undefined) return STANDARD[type];
   const low = type.toLowerCase();
   const hasClose = low.includes('close');
