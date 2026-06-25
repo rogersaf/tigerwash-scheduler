@@ -33,7 +33,7 @@ export default function Layout({ children }) {
       <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="logo-mark">🐯 Scheduler</div>
-          <div className="logo-sub">Easley</div>
+          <div className="logo-sub">Tiger Wash</div>
         </div>
 
         <nav className="sidebar-nav">

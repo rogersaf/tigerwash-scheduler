@@ -5,7 +5,6 @@ import { shiftCategory, shiftCovers, computeLiveFlags, parseShiftHours } from '.
 
 const SHIFT_CLS = { AM: 'shift-am', PM: 'shift-pm', MANAGER: 'shift-manager', MID: 'shift-mid', TRAINING: 'shift-training', OFF: 'shift-off' };
 function shiftCls(type) { return SHIFT_CLS[type] || SHIFT_CLS[shiftCategory(type)] || 'shift-custom'; }
-const SHIFT_HOURS = { AM: 7, PM: 8, MID: 7, MANAGER: 8, TRAINING: 8, OFF: 0 };
 
 // Hours rules
 const LINE_MAX = 28;
@@ -67,20 +66,16 @@ async function downloadXLSX(employees, shifts, dates, weekStart) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Schedule');
 
-  ws.columns = [
-    { header: 'Employee', key: 'name', width: 20 },
-    ...dates.map((date, i) => ({
-      header: `${DAY_NAMES[i]}\n${new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
-      key: `d${i}`,
-      width: 15,
-    })),
-  ];
+  const totalCols = 1 + dates.length;
+  const weekEnd = dates[dates.length - 1];
+  const toDate = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  ws.pageSetup = {
-    paperSize: 1,
-    orientation: 'landscape',
-  };
+  ws.pageSetup = { paperSize: 1, orientation: 'landscape' };
   ws.pageMargins = { left: 0.3, right: 0.3, top: 0.3, bottom: 0.3, header: 0.1, footer: 0.1 };
+
+  // Set column widths
+  ws.getColumn(1).width = 20;
+  for (let i = 2; i <= totalCols; i++) ws.getColumn(i).width = 15;
 
   const border = {
     top:    { style: 'thin', color: { argb: 'FF999999' } },
@@ -89,23 +84,35 @@ async function downloadXLSX(employees, shifts, dates, weekStart) {
     right:  { style: 'thin', color: { argb: 'FF999999' } },
   };
 
-  const hdrRow = ws.getRow(1);
-  hdrRow.height = 52;
-  hdrRow.eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: 'FF1F2937' }, size: 16 };
+  // Row 1 — Title
+  const titleRow = ws.getRow(1);
+  titleRow.height = 38;
+  titleRow.getCell(1).value = `Tiger Wash — Schedule: ${toDate(weekStart)} – ${toDate(weekEnd)}`;
+  titleRow.getCell(1).font = { bold: true, size: 16, color: { argb: 'FF111827' } };
+  titleRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+  titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+  ws.mergeCells(1, 1, 1, totalCols);
+
+  // Row 2 — Column headers
+  const hdrRow = ws.getRow(2);
+  hdrRow.height = 48;
+  hdrRow.getCell(1).value = 'Employee';
+  for (let i = 0; i < dates.length; i++) {
+    hdrRow.getCell(i + 2).value = `${DAY_NAMES[i]}\n${new Date(dates[i] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  }
+  for (let c = 1; c <= totalCols; c++) {
+    const cell = hdrRow.getCell(c);
+    cell.font = { bold: true, size: 14, color: { argb: 'FF1F2937' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
-    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'left' : 'center', wrapText: true };
     cell.border = border;
-  });
-  hdrRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+  }
 
   for (const emp of employees) {
-    const rowData = { name: emp.name };
-    for (let i = 0; i < dates.length; i++) {
-      const s = shifts.find((sh) => sh.employee_id === emp.id && sh.shift_date === dates[i]);
-      rowData[`d${i}`] = s && s.shift_type !== 'OFF' ? shiftDisplay(s) : '';
-    }
-    const row = ws.addRow(rowData);
+    const row = ws.addRow([emp.name, ...dates.map(date => {
+      const s = shifts.find(sh => sh.employee_id === emp.id && sh.shift_date === date);
+      return s && s.shift_type !== 'OFF' ? shiftDisplay(s) : '';
+    })]);
     row.height = 44;
 
     const nameCell = row.getCell(1);

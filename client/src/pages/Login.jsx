@@ -55,7 +55,7 @@ export default function Login() {
         <div className="auth-brand">
           <span className="brand-icon">🐯</span>
           <div className="brand-name">Staff Scheduling</div>
-          <div className="brand-loc">Easley</div>
+          <div className="brand-loc">Tiger Wash</div>
         </div>
 
         <div className="auth-toggle">

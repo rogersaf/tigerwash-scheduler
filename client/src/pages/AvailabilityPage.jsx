@@ -28,6 +28,22 @@ export default function AvailabilityPage() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [savedRecurring, setSavedRecurring] = useState(false);
   const [undoMarks, setUndoMarks] = useState(null);
+  const [weekReminders, setWeekReminders] = useState([]); // weeks with no availability submitted
+
+  // Check current + next week submission on mount
+  useEffect(() => {
+    const currWk = currentWeekStart();
+    const nextWk = addDays(currWk, 7);
+    Promise.all([
+      api.availability(currWk, user.id),
+      api.availability(nextWk, user.id),
+    ]).then(([curr, next]) => {
+      const alerts = [];
+      if (curr.length === 0) alerts.push({ week: currWk, label: formatDate(currWk) });
+      if (next.length === 0) alerts.push({ week: nextWk, label: formatDate(nextWk) });
+      setWeekReminders(alerts);
+    }).catch(() => {});
+  }, [user.id]);
 
   useEffect(() => {
     setLoading(true);
@@ -85,6 +101,7 @@ export default function AvailabilityPage() {
       await api.confirmAvailability(weekStart, [{ day_of_week: dayIndex, mark: current || null }], isRecurring);
       setSavedMarks((prev) => ({ ...prev, [dayIndex]: current }));
       setDayMsg((prev) => ({ ...prev, [dayIndex]: { type: 'ok', text: isRecurring ? 'Saved (weekly)' : 'Saved!' } }));
+      setWeekReminders(prev => prev.filter(r => r.week !== weekStart));
     } catch (err) {
       const blocked = err.message.includes('breaks coverage');
       setDayMsg((prev) => ({
@@ -118,6 +135,7 @@ export default function AvailabilityPage() {
       setSavedRecurring(isRecurring);
       setGlobalMsg(isRecurring ? '✓ Saved as weekly schedule.' : '✓ Availability saved.');
       setDayMsg({});
+      setWeekReminders(prev => prev.filter(r => r.week !== weekStart));
     } catch (err) {
       const blocked = err.message.includes('breaks coverage');
       setGlobalMsg(blocked ? '⚠ Change breaks coverage — speak with your manager.' : err.message);
@@ -152,6 +170,18 @@ export default function AvailabilityPage() {
       </div>
 
       <div className="page-body">
+        {weekReminders.map(a => (
+          <div
+            key={a.week}
+            className="alert alert-warning"
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            onClick={() => { setWeekStart(a.week); setWeekReminders(prev => prev.filter(r => r.week !== a.week)); }}
+          >
+            <span>⚠ No availability submitted for <strong>week of {a.label}</strong></span>
+            <span style={{ fontSize: 12, fontWeight: 600, marginLeft: 12 }}>Tap to fill in →</span>
+          </div>
+        ))}
+
         <div className="week-nav">
           <button className="btn btn-secondary btn-sm" onClick={() => setWeekStart(addDays(weekStart, -7))}>← Prev</button>
           <span className="week-label">{formatDate(weekStart)} — {formatDate(weekEnd)}</span>

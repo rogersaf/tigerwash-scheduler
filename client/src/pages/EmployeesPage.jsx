@@ -51,7 +51,6 @@ export default function EmployeesPage() {
   const [availLoading, setAvailLoading] = useState(false);
   const [availSaving, setAvailSaving]   = useState(false);
   const [availMsg, setAvailMsg]         = useState('');
-  const [saveRecurring, setSaveRecurring] = useState(true);
 
   async function load() {
     setLoading(true);
@@ -93,7 +92,6 @@ export default function EmployeesPage() {
     setAvailRows([]);
     setAvailEdits({});
     setAvailMsg('');
-    setSaveRecurring(true);
   }
 
   function getAvailMark(d) {
@@ -127,10 +125,9 @@ export default function EmployeesPage() {
     if (changes.length === 0) { setAvailMsg('No changes to save.'); return; }
     setAvailSaving(true);
     try {
-      const target = saveRecurring ? 'recurring' : availWeek;
-      await api.managerSetAvailability(availModal.id, target, changes);
+      await api.managerSetAvailability(availModal.id, availWeek, changes);
       await loadEmpAvail();
-      setAvailMsg(saveRecurring ? '✓ Saved to permanent profile.' : `✓ Saved for week of ${formatDate(availWeek)}.`);
+      setAvailMsg(`✓ Saved for week of ${formatDate(availWeek)}.`);
     } catch (err) { setAvailMsg('Error: ' + err.message); }
     setAvailSaving(false);
   }
@@ -216,7 +213,6 @@ export default function EmployeesPage() {
           </div>
           <div className="avail-legend">
             <span className="avail-dot avail-dot-green" /> Submitted
-            <span className="avail-dot avail-dot-yellow" style={{ marginLeft:10 }} /> Recurring
             <span className="avail-dot avail-dot-red"   style={{ marginLeft:10 }} /> None
             <span className="avail-dot" style={{ background:'var(--danger)', marginLeft:10, border:'2px solid #fff', outline:'2px solid var(--danger)' }} /> Pending
           </div>
@@ -240,8 +236,7 @@ export default function EmployeesPage() {
                   {active.map(emp => {
                     const st = availStatus[emp.id];
                     let dotClass = 'avail-dot-red', dotTitle = 'Not submitted';
-                    if (st?.week_specific) { dotClass = 'avail-dot-green'; dotTitle = 'Submitted this week'; }
-                    else if (st?.recurring) { dotClass = 'avail-dot-yellow'; dotTitle = 'Recurring schedule'; }
+                    if (st?.submitted) { dotClass = 'avail-dot-green'; dotTitle = 'Availability on file'; }
                     const hasPending = st?.has_pending;
 
                     return (
@@ -385,15 +380,7 @@ export default function EmployeesPage() {
               </div>
             )}
 
-            <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:16, flexWrap:'wrap' }}>
-              <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, cursor:'pointer', userSelect:'none' }}>
-                <input
-                  type="checkbox"
-                  checked={saveRecurring}
-                  onChange={e => setSaveRecurring(e.target.checked)}
-                />
-                Save to permanent profile (recurring)
-              </label>
+            <div style={{ display:'flex', gap:8, marginTop:16 }}>
               <button className="btn btn-primary" onClick={handleSaveAvail} disabled={availSaving}>
                 {availSaving ? 'Saving…' : '💾 Save Changes'}
               </button>

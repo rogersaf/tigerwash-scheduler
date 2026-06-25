@@ -68,8 +68,6 @@ export const api = {
   deleteHoliday: (date) => request('DELETE', `/holidays/${date}`),
 };
 
-export function getToken2() { return getToken(); }
-
 export function saveToken(token) { localStorage.setItem('tw_token', token); }
 
 export function clearToken() { localStorage.removeItem('tw_token'); }

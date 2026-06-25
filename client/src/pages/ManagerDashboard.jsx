@@ -5,6 +5,14 @@ import { computeLiveFlags } from '../coverageUtils';
 
 const KNOWN_MARKS = ['', 'X', 'AM', 'MID', 'PM'];
 function isCustom(mark) { return mark && !KNOWN_MARKS.includes(mark); }
+function safeDate(weekStart, dayOfWeek) {
+  if (!weekStart || weekStart === 'recurring') return null;
+  try { return addDays(weekStart, dayOfWeek); } catch { return null; }
+}
+function safeFmt(weekStart, dayOfWeek, fallbackWeekStart) {
+  const d = safeDate(weekStart, dayOfWeek) || addDays(fallbackWeekStart, dayOfWeek);
+  return formatDate(d);
+}
 
 const MARK_LABEL = { '': 'Available', X: 'Off all day', AM: 'No mornings (7–2)', MID: 'No mids (11–6)', PM: 'No evenings (2–close)' };
 function markLabel(mark) { return isCustom(mark) ? `Custom: "${mark}"` : (MARK_LABEL[mark] || mark); }
@@ -12,9 +20,12 @@ function markLabel(mark) { return isCustom(mark) ? `Custom: "${mark}"` : (MARK_L
 export default function ManagerDashboard() {
   const navigate = useNavigate();
   const weekStart = currentWeekStart();
+  const nextWeek  = addDays(weekStart, 7);
   const [employees, setEmployees]   = useState([]);
   const [scheduleData, setSchedule] = useState(null);
   const [pending, setPending]       = useState([]);
+  const [currStatus, setCurrStatus] = useState([]);
+  const [nextStatus, setNextStatus] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [approvingId, setApprovingId] = useState(null);
   const [noteModal, setNoteModal]   = useState(null); // {row}
@@ -23,14 +34,18 @@ export default function ManagerDashboard() {
   async function load() {
     setLoading(true);
     try {
-      const [emps, sched, pend] = await Promise.all([
+      const [emps, sched, pend, curr, next] = await Promise.all([
         api.employees(),
         api.schedule(weekStart),
         api.pendingAvailability(),
+        api.availabilityStatus(weekStart),
+        api.availabilityStatus(nextWeek),
       ]);
       setEmployees(emps);
       setSchedule(sched);
       setPending(pend);
+      setCurrStatus(curr);
+      setNextStatus(next);
     } catch {}
     setLoading(false);
   }
@@ -66,6 +81,16 @@ export default function ManagerDashboard() {
       ));
     } catch {}
     setNoteModal(null); setNoteText('');
+  }
+
+  function submitStatus(empId) {
+    const curr = currStatus.find(s => s.employee_id === empId);
+    const next = nextStatus.find(s => s.employee_id === empId);
+    const currOk = curr?.submitted;
+    const nextOk = next?.submitted;
+    if (currOk && nextOk) return 'full';
+    if (currOk || nextOk) return 'partial';
+    return 'none';
   }
 
   const activeCount  = employees.filter(e => e.active).length;
@@ -123,6 +148,39 @@ export default function ManagerDashboard() {
               </div>
             </div>
 
+            {/* Submission tracker */}
+            {(() => {
+              const crew = employees.filter(e => e.active && e.role === 'line');
+              const fullCount = crew.filter(e => submitStatus(e.id) === 'full').length;
+              return (
+                <div className="card" style={{ marginBottom: 20 }}>
+                  <div className="card-header">
+                    <div className="card-title">✅ Availability Submitted — {fullCount}/{crew.length} ready</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      Green = both weeks done &nbsp;·&nbsp; Yellow = one week &nbsp;·&nbsp; Red = nothing submitted
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '12px 16px' }}>
+                    {crew.map(emp => {
+                      const st = submitStatus(emp.id);
+                      const curr = currStatus.find(s => s.employee_id === emp.id);
+                      const next = nextStatus.find(s => s.employee_id === emp.id);
+                      const bg   = st === 'full' ? '#dcfce7' : st === 'partial' ? '#fef9c3' : '#fee2e2';
+                      const txt  = st === 'full' ? '#166534' : st === 'partial' ? '#854d0e' : '#991b1b';
+                      return (
+                        <div key={emp.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:20, background: bg, color: txt, fontSize:13, fontWeight:600 }}>
+                          <span style={{ fontSize:9 }}>
+                            {curr?.submitted ? '●' : '○'}{next?.submitted ? '●' : '○'}
+                          </span>
+                          {emp.name}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Pending availability requests */}
             {pending.length > 0 && (
               <div className="card" style={{ marginBottom: 20 }}>
@@ -135,8 +193,7 @@ export default function ManagerDashboard() {
                     const key = `${row.employee_id}-${row.week_start}-${row.day_of_week}`;
                     const approving = approvingId === key;
                     const dayName = DAY_NAMES[row.day_of_week] || `Day ${row.day_of_week}`;
-                    const actualDate = formatDate(addDays(weekStart, row.day_of_week));
-                    const weekOf = row.week_start === 'recurring' ? `${actualDate} (recurring)` : formatDate(addDays(row.week_start, row.day_of_week));
+                    const weekOf = `${safeFmt(row.week_start, row.day_of_week, weekStart)}${row.week_start === 'recurring' ? ' (recurring)' : ''}`;
                     return (
                       <div key={key} className="pending-row">
                         <div className="pending-info">
@@ -215,7 +272,7 @@ export default function ManagerDashboard() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-title">Add Note & Approve — {noteModal.employee_name}</div>
             <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--text-muted)' }}>
-              {DAY_NAMES[noteModal.day_of_week]}, {formatDate(addDays(noteModal.week_start === 'recurring' ? weekStart : noteModal.week_start, noteModal.day_of_week))}{noteModal.week_start === 'recurring' ? ' (recurring)' : ''}<br />
+              {DAY_NAMES[noteModal.day_of_week]}, {safeFmt(noteModal.week_start, noteModal.day_of_week, weekStart)}{noteModal.week_start === 'recurring' ? ' (recurring)' : ''}<br />
               Request: <strong>{markLabel(noteModal.mark)}</strong>
             </div>
             <div className="field">

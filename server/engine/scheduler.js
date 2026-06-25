@@ -45,9 +45,15 @@ function generateSchedule(weekStart, db) {
   );
 
   // Availability map: employee_id -> { dayIndex -> mark }
-  const avRows = db.all('SELECT * FROM availability WHERE week_start = ?', [weekStart]);
+  // Recurring rows are the base; week-specific rows override per day
+  const avRecurring = db.all("SELECT * FROM availability WHERE week_start = 'recurring'");
+  const avWeekly = db.all('SELECT * FROM availability WHERE week_start = ?', [weekStart]);
   const avMap = {};
-  for (const row of avRows) {
+  for (const row of avRecurring) {
+    if (!avMap[row.employee_id]) avMap[row.employee_id] = {};
+    avMap[row.employee_id][row.day_of_week] = row.mark;
+  }
+  for (const row of avWeekly) {
     if (!avMap[row.employee_id]) avMap[row.employee_id] = {};
     avMap[row.employee_id][row.day_of_week] = row.mark;
   }
@@ -291,11 +297,11 @@ function generateSchedule(weekStart, db) {
   }
 
   // --- Ensure both managers hit 35h minimum ---
-  const SHIFT_HRS = { AM: 7, PM: 8, MID: 7, MANAGER: 8, TRAINING: 8, '9-6': 9, OFF: 0 };
+  const SHIFT_HRS = { AM: 7, PM: 6, MID: 7, MANAGER: 8, TRAINING: 8, '9-6': 9, OFF: 0 };
   function mgrHours(emp) {
     return schedule
       .filter((s) => s.employee_id === emp.id && s.shift_type !== 'OFF')
-      .reduce((sum, s) => sum + (SHIFT_HRS[s.shift_type] ?? 6), 0);
+      .reduce((sum, s) => sum + (SHIFT_HRS[s.shift_type] ?? 0), 0);
   }
 
   for (const mgr of [angel, employees.find((e) => e.name === 'Nick')].filter(Boolean)) {

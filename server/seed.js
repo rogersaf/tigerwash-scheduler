@@ -27,10 +27,8 @@ const seedTx = db.transaction(() => {
     );
   }
 
-  // July 4th holiday
-  db.run("INSERT OR IGNORE INTO holidays (holiday_date, name) VALUES ('2025-07-04', 'Independence Day')");
-
-  // Standing availability from Excel (week_start = 2025-06-29, 0=Mon…6=Sun)
+  // Recurring standing availability (week_start = 'recurring') — survives every DB reset
+  // Mark meanings: 'AM' = no mornings (available PM only), 'PM' = no evenings (available AM only), 'X' = off
   const avail = [
     ['James',   0,'PM'],['James',   1,'PM'],['James',   2,'PM'],['James',   3,'PM'],['James',   4,'PM'],['James',   5,'PM'],['James',   6,'PM'],
     ['Eduardo', 0,'X'], ['Eduardo', 1,'X'], ['Eduardo', 2,'X'], ['Eduardo', 3,'PM'],['Eduardo', 4,'PM'],['Eduardo', 5,'PM'],['Eduardo', 6,'X'],
@@ -38,13 +36,12 @@ const seedTx = db.transaction(() => {
     ['Allie',   0,'PM'],['Allie',   1,'PM'],['Allie',   2,'PM'],['Allie',   3,'PM'],['Allie',   4,'PM'],['Allie',   5,'PM'],['Allie',   6,'PM'],
     ['Derek',   0,'AM'],['Derek',   1,'AM'],['Derek',   2,'AM'],['Derek',   3,'AM'],['Derek',   4,'AM'],['Derek',   5,'AM'],['Derek',   6,'AM'],
   ];
-  const weekStart = '2025-06-29';
   for (const [name, day, mark] of avail) {
     const emp = db.get('SELECT id FROM employees WHERE name = ?', [name]);
     if (emp) {
       db.run(
-        'INSERT OR IGNORE INTO availability (employee_id, week_start, day_of_week, mark) VALUES (?,?,?,?)',
-        [emp.id, weekStart, day, mark]
+        "INSERT OR IGNORE INTO availability (employee_id, week_start, day_of_week, mark) VALUES (?,?,?,?)",
+        [emp.id, 'recurring', day, mark]
       );
     }
   }
