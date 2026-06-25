@@ -138,6 +138,23 @@ function generateSchedule(weekStart, db) {
 
     if (!managerOn) flags.push({ shift_date: date, week_start: weekStart, issue: 'No manager — Angel off, check if Nick can cover' });
 
+    // --- Training shadows: mirror Angel's shift exactly ---
+    // Any is_training employee shadows Angel on every day Angel is working,
+    // getting the same shift type, as long as they are available that day.
+    const angelShiftToday = schedule.find(
+      (s) => s.employee_id === angel?.id && s.shift_date === date && shiftCategory(s.shift_type) !== 'OFF'
+    );
+    if (angelShiftToday) {
+      const trainees = lineEmployees.filter((e) => e.is_training);
+      for (const trainee of trainees) {
+        if (isAssigned(trainee.id, date)) continue;
+        const avail = avMap[trainee.id]?.[d];
+        if (avail === 'X') continue;
+        schedule.push({ employee_id: trainee.id, shift_date: date, shift_type: angelShiftToday.shift_type, is_manual_override: 0 });
+        shiftsThisWeek[trainee.id] = (shiftsThisWeek[trainee.id] || 0) + 1;
+      }
+    }
+
     // Count manual override coverage for this day (so "7-1" etc. credit toward AM/PM)
     const todayManualLine = schedule.filter(
       (s) => s.shift_date === date && s.is_manual_override &&
