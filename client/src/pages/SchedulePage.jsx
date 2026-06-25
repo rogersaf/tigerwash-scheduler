@@ -246,13 +246,16 @@ export default function SchedulePage() {
   function openOverrideModal(emp, date) {
     const ex = getShift(emp.id, date);
     setOverrideModal({ emp, date });
-    // Default shift type: managers start at MANAGER, line crew start at AM
-    const defaultType = ex?.shift_type || (emp.role === 'manager' ? 'MANAGER' : 'AM');
-    setOverrideType(defaultType);
     const stdTypes = ['AM', 'PM', 'MID', 'MANAGER', 'OFF'];
-    const existing = stdTypes.includes(ex?.shift_type) ? (SHIFT_LABELS[ex?.shift_type] || '') : (ex?.shift_type || '');
-    // For a new manager shift with no existing entry, pre-fill with the MANAGER label
-    setCustomLabel(existing || (emp.role === 'manager' && !ex ? SHIFT_LABELS['MANAGER'] : ''));
+    if (ex) {
+      setOverrideType(ex.shift_type || 'AM');
+      const label = stdTypes.includes(ex.shift_type) ? (SHIFT_LABELS[ex.shift_type] || '') : (ex.shift_type || '');
+      setCustomLabel(label);
+    } else {
+      const defaultType = emp.role === 'manager' ? 'MANAGER' : 'AM';
+      setOverrideType(defaultType);
+      setCustomLabel(defaultType === 'MANAGER' ? '8am-4pm' : '');
+    }
   }
 
   const weekEnd = addDays(weekStart, 6);
@@ -489,7 +492,13 @@ export default function SchedulePage() {
           return 'AM';
         }
         const cat = autoCategory(customLabel);
-        const catLabel = { AM:'Open', PM:'Close', MID:'Mid', MANAGER:'Manager', OFF:'Off' }[cat];
+        // Managers always save as MANAGER type unless explicitly marked off
+        function resolveSaveType() {
+          const low = customLabel.trim().toLowerCase();
+          if (low === 'off' || low === '') return autoCategory(customLabel);
+          return overrideModal.emp.role === 'manager' ? 'MANAGER' : autoCategory(customLabel);
+        }
+        const catLabel = { AM:'Open', PM:'Close', MID:'Mid', MANAGER:'Manager', OFF:'Off' }[overrideModal.emp.role === 'manager' && customLabel.trim().toLowerCase() !== 'off' && customLabel.trim() ? 'MANAGER' : cat];
         return (
           <div className="modal-backdrop" onClick={() => setOverrideModal(null)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -505,7 +514,7 @@ export default function SchedulePage() {
                   value={customLabel}
                   autoFocus
                   onChange={(e) => setCustomLabel(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleOverrideSave(autoCategory(customLabel)); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleOverrideSave(resolveSaveType()); }}
                   style={{ fontSize:16 }}
                 />
                 {customLabel.trim() && (
@@ -515,7 +524,7 @@ export default function SchedulePage() {
                 )}
               </div>
               <div style={{ display:'flex', gap:8, marginTop:8 }}>
-                <button className="btn btn-primary" onClick={() => handleOverrideSave(autoCategory(customLabel))}>Save</button>
+                <button className="btn btn-primary" onClick={() => handleOverrideSave(resolveSaveType())}>Save</button>
                 <button className="btn btn-secondary" onClick={() => setOverrideModal(null)}>Cancel</button>
               </div>
             </div>
