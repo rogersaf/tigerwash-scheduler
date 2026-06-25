@@ -54,12 +54,18 @@ export function shiftCovers(shiftType, slot) {
   if (!shiftType || shiftType === 'OFF') return false;
   const low = shiftType.toLowerCase();
   const hasClose = low.includes('close');
-  const m = shiftType.match(/^(\d+)/);
-  const h = m ? parseInt(m[1], 10) : null;
+  const normalized = [...shiftType].map(c => { const cp = c.codePointAt(0); return (cp >= 0x2010 && cp <= 0x2015) || cp === 0x2212 ? '-' : c; }).join('').replace(/-+/g, '-');
+  const mStart = normalized.match(/^(\d+)/);
+  const mEnd = normalized.match(/-(\d+)(?:[^0-9]|$)/);
+  const h = mStart ? parseInt(mStart[1], 10) : null;
+  let endH = mEnd ? parseInt(mEnd[1], 10) : null;
+  // If end hour < start hour, it's PM (e.g. 9-6 means 9am-6pm)
+  if (endH !== null && h !== null && endH < h) endH += 12;
+  const coversClose = hasClose || (endH !== null && endH >= 18);
   const startCat = h !== null ? (h >= 13 ? 'PM' : h >= 11 ? 'MID' : 'AM')
                  : (low === 'am' ? 'AM' : low === 'mid' ? 'MID' : 'PM');
   if (slot === 'AM') return startCat === 'AM';
-  if (slot === 'PM') return hasClose || startCat === 'PM' || low === 'pm';
+  if (slot === 'PM') return coversClose || startCat === 'PM' || low === 'pm';
   return false;
 }
 
