@@ -135,7 +135,8 @@ export default function ManagerDashboard() {
                     const key = `${row.employee_id}-${row.week_start}-${row.day_of_week}`;
                     const approving = approvingId === key;
                     const dayName = DAY_NAMES[row.day_of_week] || `Day ${row.day_of_week}`;
-                    const weekOf = formatDate(row.week_start);
+                    const actualDate = formatDate(addDays(weekStart, row.day_of_week));
+                    const weekOf = row.week_start === 'recurring' ? `${actualDate} (recurring)` : formatDate(addDays(row.week_start, row.day_of_week));
                     return (
                       <div key={key} className="pending-row">
                         <div className="pending-info">
@@ -214,7 +215,7 @@ export default function ManagerDashboard() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-title">Add Note & Approve — {noteModal.employee_name}</div>
             <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--text-muted)' }}>
-              {DAY_NAMES[noteModal.day_of_week]}, week of {formatDate(noteModal.week_start)}<br />
+              {DAY_NAMES[noteModal.day_of_week]}, {formatDate(addDays(noteModal.week_start === 'recurring' ? weekStart : noteModal.week_start, noteModal.day_of_week))}{noteModal.week_start === 'recurring' ? ' (recurring)' : ''}<br />
               Request: <strong>{markLabel(noteModal.mark)}</strong>
             </div>
             <div className="field">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ExcelJS from 'exceljs';
 import { api, currentWeekStart, addDays, formatDate, DAY_NAMES, SHIFT_LABELS } from '../api';
 import { shiftCategory, shiftCovers, computeLiveFlags, parseShiftHours } from '../coverageUtils';
 
@@ -62,26 +63,81 @@ function generateICS(shifts) {
   return lines.join('\r\n');
 }
 
-function generateCSV(employees, shifts, dates) {
-  const header = ['Employee', 'Role', ...DAY_NAMES.map((d, i) => `${d} ${new Date(dates[i] + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}`), 'Total Hrs', 'Hr Status'];
-  const rows = [header];
+async function downloadXLSX(employees, shifts, dates, weekStart) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Schedule');
+
+  ws.columns = [
+    { header: 'Employee', key: 'name', width: 20 },
+    ...dates.map((date, i) => ({
+      header: `${DAY_NAMES[i]}\n${new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      key: `d${i}`,
+      width: 15,
+    })),
+  ];
+
+  ws.pageSetup = {
+    paperSize: 1,
+    orientation: 'landscape',
+  };
+  ws.pageMargins = { left: 0.3, right: 0.3, top: 0.3, bottom: 0.3, header: 0.1, footer: 0.1 };
+
+  const border = {
+    top:    { style: 'thin', color: { argb: 'FF999999' } },
+    left:   { style: 'thin', color: { argb: 'FF999999' } },
+    bottom: { style: 'thin', color: { argb: 'FF999999' } },
+    right:  { style: 'thin', color: { argb: 'FF999999' } },
+  };
+
+  const hdrRow = ws.getRow(1);
+  hdrRow.height = 52;
+  hdrRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FF1F2937' }, size: 16 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    cell.border = border;
+  });
+  hdrRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+
   for (const emp of employees) {
-    const row = [emp.name, emp.role === 'manager' ? 'Manager' : 'Crew'];
-    let hrs = 0;
-    for (const date of dates) {
-      const s = shifts.find((sh) => sh.employee_id === emp.id && sh.shift_date === date);
-      row.push(s ? shiftDisplay(s) : '');
-      if (s) hrs += parseShiftHours(s.shift_type);
+    const rowData = { name: emp.name };
+    for (let i = 0; i < dates.length; i++) {
+      const s = shifts.find((sh) => sh.employee_id === emp.id && sh.shift_date === dates[i]);
+      rowData[`d${i}`] = s && s.shift_type !== 'OFF' ? shiftDisplay(s) : '';
     }
-    row.push(hrs || 0);
-    if (emp.role === 'manager') {
-      row.push(hrs < MGR_MIN ? `UNDER (min ${MGR_MIN})` : 'OK');
-    } else {
-      row.push(hrs > LINE_MAX ? `OVER (max ${LINE_MAX})` : 'OK');
+    const row = ws.addRow(rowData);
+    row.height = 44;
+
+    const nameCell = row.getCell(1);
+    nameCell.font = { bold: true, size: 16, color: { argb: 'FF111827' } };
+    nameCell.alignment = { vertical: 'middle', horizontal: 'left' };
+    nameCell.border = border;
+
+    for (let i = 0; i < dates.length; i++) {
+      const s = shifts.find((sh) => sh.employee_id === emp.id && sh.shift_date === dates[i]);
+      const working = s && s.shift_type !== 'OFF';
+      const cell = row.getCell(i + 2);
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = border;
+      if (working) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+        cell.font = { size: 16, bold: true, color: { argb: 'FF111827' } };
+      } else {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF4444' } };
+        cell.value = '';
+      }
     }
-    rows.push(row);
   }
-  return rows.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `schedule-${weekStart}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
 }
 
 function downloadFile(content, filename, type) {
@@ -304,7 +360,7 @@ export default function SchedulePage() {
             <button className="btn btn-secondary btn-sm" onClick={() => setShowHours((v) => !v)}>
               {showHours ? '🕐 Hide Hrs' : '🕐 Show Hrs'}
             </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => downloadFile(generateCSV(employees, schedData.shifts, dates), `schedule-${weekStart}.csv`, 'text/csv')}>
+            <button className="btn btn-secondary btn-sm" onClick={() => downloadXLSX(employees, schedData.shifts, dates, weekStart)}>
               ⬇ Excel / Print
             </button>
             <button className="btn btn-secondary btn-sm" onClick={() => downloadFile(generateICS(schedData.shifts), `schedule-${weekStart}.ics`, 'text/calendar')}>

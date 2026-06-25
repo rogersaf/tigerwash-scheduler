@@ -51,6 +51,7 @@ export default function EmployeesPage() {
   const [availLoading, setAvailLoading] = useState(false);
   const [availSaving, setAvailSaving]   = useState(false);
   const [availMsg, setAvailMsg]         = useState('');
+  const [saveRecurring, setSaveRecurring] = useState(true);
 
   async function load() {
     setLoading(true);
@@ -72,12 +73,12 @@ export default function EmployeesPage() {
   // Load availability for the currently open employee modal
   useEffect(() => {
     if (!availModal) return;
-    loadEmpAvail();
+    loadEmpAvail(true);
   }, [availModal, availWeek]);
 
-  async function loadEmpAvail() {
+  async function loadEmpAvail(clearMsg = false) {
     setAvailLoading(true);
-    setAvailMsg('');
+    if (clearMsg) setAvailMsg('');
     try {
       const rows = await api.availability(availWeek, availModal.id);
       setAvailRows(rows);
@@ -92,6 +93,7 @@ export default function EmployeesPage() {
     setAvailRows([]);
     setAvailEdits({});
     setAvailMsg('');
+    setSaveRecurring(true);
   }
 
   function getAvailMark(d) {
@@ -122,12 +124,13 @@ export default function EmployeesPage() {
         changes.push({ day_of_week: d, mark: availEdits[d] || null });
       }
     }
-    if (changes.length === 0) { setAvailMsg('No changes.'); return; }
+    if (changes.length === 0) { setAvailMsg('No changes to save.'); return; }
     setAvailSaving(true);
     try {
-      await api.managerSetAvailability(availModal.id, availWeek, changes);
-      setAvailMsg('Saved.');
+      const target = saveRecurring ? 'recurring' : availWeek;
+      await api.managerSetAvailability(availModal.id, target, changes);
       await loadEmpAvail();
+      setAvailMsg(saveRecurring ? '✓ Saved to permanent profile.' : `✓ Saved for week of ${formatDate(availWeek)}.`);
     } catch (err) { setAvailMsg('Error: ' + err.message); }
     setAvailSaving(false);
   }
@@ -382,7 +385,15 @@ export default function EmployeesPage() {
               </div>
             )}
 
-            <div style={{ display:'flex', gap:8, marginTop:16 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:16, flexWrap:'wrap' }}>
+              <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, cursor:'pointer', userSelect:'none' }}>
+                <input
+                  type="checkbox"
+                  checked={saveRecurring}
+                  onChange={e => setSaveRecurring(e.target.checked)}
+                />
+                Save to permanent profile (recurring)
+              </label>
               <button className="btn btn-primary" onClick={handleSaveAvail} disabled={availSaving}>
                 {availSaving ? 'Saving…' : '💾 Save Changes'}
               </button>
