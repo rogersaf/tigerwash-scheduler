@@ -180,6 +180,32 @@ function generateSchedule(weekStart, db) {
     }
   }
 
+  // --- Ensure Angel hits 35h minimum ---
+  // Engine only assigns Angel as Nick's fallback; when Nick covers all weekdays she gets 0 hours.
+  // After the main loop, top her up with MANAGER shifts on any remaining open days.
+  if (angel) {
+    const SHIFT_HRS = { AM: 7, PM: 8, MID: 7, MANAGER: 8, OFF: 0 };
+    function angelHoursTotal() {
+      return schedule
+        .filter((s) => s.employee_id === angel.id && s.shift_type !== 'OFF')
+        .reduce((sum, s) => sum + (SHIFT_HRS[s.shift_type] ?? 6), 0);
+    }
+    if (angelHoursTotal() < 35) {
+      for (let d = 0; d < 7; d++) {
+        if (angelHoursTotal() >= 35) break;
+        const date = addDays(weekStart, d);
+        if (holidays.includes(date)) continue;
+        if (isAssigned(angel.id, date)) continue;
+        const avail = avMap[angel.id]?.[d];
+        if (avail === 'X') continue;
+        schedule.push({ employee_id: angel.id, shift_date: date, shift_type: 'MANAGER', is_manual_override: 0 });
+      }
+    }
+    if (angelHoursTotal() < 35) {
+      flags.push({ shift_date: addDays(weekStart, 0), week_start: weekStart, issue: `Angel below 35h minimum: ${angelHoursTotal()}h scheduled` });
+    }
+  }
+
   return { schedule, flags };
 }
 
