@@ -26,6 +26,7 @@ export default function AvailabilityPage() {
   const [dayMsg, setDayMsg] = useState({});        // dayIndex → {type, text}
   const [globalMsg, setGlobalMsg] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
+  const [savedRecurring, setSavedRecurring] = useState(false);
   const [undoMarks, setUndoMarks] = useState(null);
 
   useEffect(() => {
@@ -41,7 +42,9 @@ export default function AvailabilityPage() {
         setMarks({ ...m });
         setSavedMarks({ ...m });
         setCustomText(ct);
-        setIsRecurring(avRows.some((r) => r.source === 'recurring'));
+        const rec = avRows.some((r) => r.source === 'recurring');
+        setIsRecurring(rec);
+        setSavedRecurring(rec);
         setHolidays(hols.map((h) => h.holiday_date));
       })
       .catch(() => {})
@@ -97,11 +100,12 @@ export default function AvailabilityPage() {
 
   // Save all dirty days at once
   async function saveAllDays() {
+    const recurringChanged = isRecurring !== savedRecurring;
     const changes = [];
     for (let d = 0; d < 7; d++) {
       const current = marks[d] ?? '';
       const saved = savedMarks[d] ?? '';
-      if (current !== saved) changes.push({ day_of_week: d, mark: current || null });
+      if (current !== saved || recurringChanged) changes.push({ day_of_week: d, mark: current || null });
     }
     if (changes.length === 0) { setGlobalMsg('No changes.'); return; }
     setSavingDay('all');
@@ -111,6 +115,7 @@ export default function AvailabilityPage() {
       const next = { ...savedMarks };
       for (const c of changes) next[c.day_of_week] = c.mark ?? '';
       setSavedMarks(next);
+      setSavedRecurring(isRecurring);
       setGlobalMsg(isRecurring ? '✓ Saved as weekly schedule.' : '✓ Availability saved.');
       setDayMsg({});
     } catch (err) {
@@ -134,7 +139,7 @@ export default function AvailabilityPage() {
   }
 
   function isDirty(d) { return (marks[d] ?? '') !== (savedMarks[d] ?? ''); }
-  const anyDirty = DAY_NAMES.some((_, d) => isDirty(d));
+  const anyDirty = DAY_NAMES.some((_, d) => isDirty(d)) || isRecurring !== savedRecurring;
   const weekEnd = addDays(weekStart, 6);
 
   return (
