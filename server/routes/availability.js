@@ -50,6 +50,12 @@ router.post('/confirm', requireAuth, (req, res) => {
   const employee_id = req.user.id;
   if (!week_start || !Array.isArray(marks)) return res.status(400).json({ error: 'week_start and marks required' });
 
+  // Block week-specific saves on published weeks
+  if (!is_recurring) {
+    const pub = db.get('SELECT 1 FROM published_weeks WHERE week_start = ?', [week_start]);
+    if (pub) return res.status(403).json({ error: 'The schedule for this week has been posted — availability is locked.', locked: true });
+  }
+
   const breaks = wouldBreakCoverage(employee_id, week_start, marks, db);
   if (breaks) return res.status(409).json({ error: 'This change breaks coverage. Please speak with your manager.', blocked: true });
 
