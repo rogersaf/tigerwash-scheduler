@@ -223,6 +223,26 @@ function generateSchedule(weekStart, db) {
       shiftsThisWeek[emp.id]++;
       pmFilled++;
     }
+
+    // Saturday PM fallback: if still short, pull anyone available ignoring day cap
+    if (d === 5 && pmFilled < 2) {
+      const satFallback = lineEmployees
+        .filter((e) => {
+          if (isAssigned(e.id, date)) return false;
+          const avail = avMap[e.id]?.[d];
+          if (avail === 'X' || avail === 'PM') return false;
+          if (e.days_allowed && !JSON.parse(e.days_allowed).includes(d)) return false;
+          return true;
+        })
+        .sort((a, b) => shiftsThisWeek[a.id] - shiftsThisWeek[b.id]);
+      for (const emp of satFallback) {
+        if (pmFilled >= 2) break;
+        schedule.push({ employee_id: emp.id, shift_date: date, shift_type: 'PM', is_manual_override: 0 });
+        shiftsThisWeek[emp.id]++;
+        pmFilled++;
+      }
+    }
+
     if (pmFilled < 2) flags.push({ shift_date: date, week_start: weekStart, issue: `Short on PM closers: ${pmFilled}/2` });
 
     // --- MID cap: max 1 per day ---
