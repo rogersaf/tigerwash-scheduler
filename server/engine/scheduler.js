@@ -128,11 +128,11 @@ function generateSchedule(weekStart, db) {
   // Lock them into their specific allowed days before the general pool competes.
   // Only applies to employees with explicit day restrictions (e.g. James Mon-Wed).
   // Colton (no days_allowed) is NOT in this pass — he fills naturally via the main loop.
-  for (const emp of lineEmployees.filter(e => e.exempt_day_cap && e.days_allowed)) {
+  for (const emp of lineEmployees.filter(e => e.days_allowed)) {
     const allowed = JSON.parse(emp.days_allowed);
     const shiftType = emp.am_only ? 'AM' : emp.pm_only ? 'PM' : 'AM';
     for (const d of allowed) {
-      if (shiftsThisWeek[emp.id] >= 3) break;
+      if (shiftsThisWeek[emp.id] >= (emp.exempt_day_cap ? 3 : 2)) break;
       const date = addDays(weekStart, d);
       if (new Date(date + 'T12:00:00Z').getDay() === 0) continue;
       if (holidays.includes(date)) continue;

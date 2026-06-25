@@ -108,5 +108,6 @@ export const SHIFT_LABELS = {
   MID: '11 – 6',
   MANAGER: '8 – 4',
   TRAINING: '8 – 4',
+  '9-6': '9 – 6',
   OFF: 'Off',
 };
