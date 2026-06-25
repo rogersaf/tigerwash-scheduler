@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { api, currentWeekStart, addDays, formatDate, DAY_NAMES, SHIFT_LABELS } from '../api';
 import { shiftCategory, shiftCovers, computeLiveFlags, parseShiftHours } from '../coverageUtils';
 
-const SHIFT_CLS = { AM: 'shift-am', PM: 'shift-pm', MANAGER: 'shift-manager', MID: 'shift-mid', OFF: 'shift-off' };
-function shiftCls(type) { return SHIFT_CLS[shiftCategory(type)] || 'shift-custom'; }
-const SHIFT_HOURS = { AM: 7, PM: 8, MID: 7, MANAGER: 8, OFF: 0 };
+const SHIFT_CLS = { AM: 'shift-am', PM: 'shift-pm', MANAGER: 'shift-manager', MID: 'shift-mid', TRAINING: 'shift-training', OFF: 'shift-off' };
+function shiftCls(type) { return SHIFT_CLS[type] || SHIFT_CLS[shiftCategory(type)] || 'shift-custom'; }
+const SHIFT_HOURS = { AM: 7, PM: 8, MID: 7, MANAGER: 8, TRAINING: 8, OFF: 0 };
 
 // Hours rules
 const LINE_MAX = 28;

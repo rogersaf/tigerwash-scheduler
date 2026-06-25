@@ -35,7 +35,7 @@ export function parseShiftHours(shiftType, date) {
 export function shiftCategory(shiftType) {
   if (!shiftType || shiftType === 'OFF') return 'OFF';
   const low = shiftType.toLowerCase();
-  if (low === 'manager' || low.includes('mgr') || low.includes('manager')) return 'MANAGER';
+  if (low === 'manager' || low === 'training' || low.includes('mgr') || low.includes('manager')) return 'MANAGER';
   if (low === 'am') return 'AM';
   if (low === 'pm' || low.includes('close')) return 'PM';
   if (low === 'mid') return 'MID';

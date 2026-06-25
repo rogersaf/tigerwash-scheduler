@@ -150,7 +150,7 @@ function generateSchedule(weekStart, db) {
         if (isAssigned(trainee.id, date)) continue;
         const avail = avMap[trainee.id]?.[d];
         if (avail === 'X') continue;
-        schedule.push({ employee_id: trainee.id, shift_date: date, shift_type: angelShiftToday.shift_type, is_manual_override: 0 });
+        schedule.push({ employee_id: trainee.id, shift_date: date, shift_type: 'TRAINING', is_manual_override: 0 });
         shiftsThisWeek[trainee.id] = (shiftsThisWeek[trainee.id] || 0) + 1;
       }
     }
@@ -228,7 +228,7 @@ function generateSchedule(weekStart, db) {
   }
 
   // --- Ensure both managers hit 35h minimum ---
-  const SHIFT_HRS = { AM: 7, PM: 8, MID: 7, MANAGER: 8, OFF: 0 };
+  const SHIFT_HRS = { AM: 7, PM: 8, MID: 7, MANAGER: 8, TRAINING: 8, OFF: 0 };
   function mgrHours(emp) {
     return schedule
       .filter((s) => s.employee_id === emp.id && s.shift_type !== 'OFF')

@@ -107,5 +107,6 @@ export const SHIFT_LABELS = {
   PM: '2 – Close',
   MID: '11 – 6',
   MANAGER: '8 – 4',
+  TRAINING: 'Training',
   OFF: 'Off',
 };
