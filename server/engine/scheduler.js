@@ -65,9 +65,18 @@ function generateSchedule(weekStart, db) {
   const isAssigned = (empId, date) =>
     schedule.some((s) => s.employee_id === empId && s.shift_date === date);
 
-  const nick = employees.find((e) => e.name === 'Nick');
   const angel = employees.find((e) => e.name === 'Angel');
   const lineEmployees = employees.filter((e) => e.role === 'line');
+
+  // A manager is "on" for a date if any manager-role employee has a non-OFF shift that day.
+  // This catches custom shift types (e.g. "9-close") not just the literal "MANAGER" type.
+  function managerOnDate(date) {
+    return schedule.some((s) => {
+      if (s.shift_date !== date) return false;
+      const emp = employees.find((e) => e.id === s.employee_id);
+      return emp?.role === 'manager' && shiftCategory(s.shift_type) !== 'OFF';
+    });
+  }
 
   function canWork(emp, shiftType, dayIndex, date) {
     if (isAssigned(emp.id, date)) return false;
@@ -82,6 +91,8 @@ function generateSchedule(weekStart, db) {
       if (!allowed.includes(dayIndex)) return false;
     }
     if (!emp.exempt_day_cap && emp.role === 'line' && shiftsThisWeek[emp.id] >= 2) return false;
+    // Trainees must shadow a manager — only place them on days a manager is already assigned
+    if (emp.is_training && !managerOnDate(date)) return false;
     return true;
   }
 
@@ -89,20 +100,11 @@ function generateSchedule(weekStart, db) {
     const date = addDays(weekStart, d);
     if (holidays.includes(date)) continue;
 
-    const isWeekday = d < 5;
-
     // --- Manager ---
-    let managerOn = schedule.some(
-      (s) => s.shift_date === date && s.shift_type === 'MANAGER' && employees.find((e) => e.id === s.employee_id)?.role === 'manager'
-    );
-
-    if (!managerOn && nick && isWeekday && !isAssigned(nick.id, date)) {
-      const a = avMap[nick.id]?.[d];
-      if (a !== 'X') {
-        schedule.push({ employee_id: nick.id, shift_date: date, shift_type: 'MANAGER', is_manual_override: 0 });
-        managerOn = true;
-      }
-    }
+    // Angel is the primary auto-scheduled manager every day she's available.
+    // Nick is NEVER auto-scheduled — his shifts are always manual overrides.
+    // The schedule must be viable with Angel + crew alone; Nick's presence is a bonus.
+    let managerOn = managerOnDate(date);
 
     if (!managerOn && angel && !isAssigned(angel.id, date)) {
       const a = avMap[angel.id]?.[d];
@@ -112,7 +114,7 @@ function generateSchedule(weekStart, db) {
       }
     }
 
-    if (!managerOn) flags.push({ shift_date: date, week_start: weekStart, issue: 'No manager available' });
+    if (!managerOn) flags.push({ shift_date: date, week_start: weekStart, issue: 'No manager — Angel off, check if Nick can cover' });
 
     // Count manual override coverage for this day (so "7-1" etc. credit toward AM/PM)
     const todayManualLine = schedule.filter(
@@ -159,6 +161,12 @@ function generateSchedule(weekStart, db) {
       pmFilled++;
     }
     if (pmFilled < 2) flags.push({ shift_date: date, week_start: weekStart, issue: `Short on PM closers: ${pmFilled}/2` });
+
+    // --- MID cap: max 1 per day ---
+    const midOnDay = schedule.filter((s) => s.shift_date === date && shiftCategory(s.shift_type) === 'MID').length;
+    if (midOnDay > 1) {
+      flags.push({ shift_date: date, week_start: weekStart, issue: `Over MID cap: ${midOnDay} mid shifts scheduled (max 1)` });
+    }
 
     // --- Solo line employee warning ---
     const lineOnFloor = schedule.filter(
