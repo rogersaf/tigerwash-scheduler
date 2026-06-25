@@ -91,8 +91,13 @@ function generateSchedule(weekStart, db) {
       if (!allowed.includes(dayIndex)) return false;
     }
     if (!emp.exempt_day_cap && emp.role === 'line' && shiftsThisWeek[emp.id] >= 2) return false;
-    // Trainees must shadow a manager — only place them on days a manager is already assigned
-    if (emp.is_training && !managerOnDate(date)) return false;
+    // Trainees shadow Angel specifically — only place them on days Angel is already scheduled
+    if (emp.is_training) {
+      const angelScheduled = angel && schedule.some(
+        (s) => s.employee_id === angel.id && s.shift_date === date && shiftCategory(s.shift_type) !== 'OFF'
+      );
+      if (!angelScheduled) return false;
+    }
     return true;
   }
 
