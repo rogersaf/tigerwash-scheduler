@@ -101,8 +101,33 @@ function generateSchedule(weekStart, db) {
     return true;
   }
 
+  // --- Sunday pre-pass: 9am-6pm open-to-close, Angel always on ---
+  // Process Sunday first so angelDaysScheduled includes it when the weekday loop runs.
   for (let d = 0; d < 7; d++) {
     const date = addDays(weekStart, d);
+    if (new Date(date + 'T12:00:00Z').getDay() !== 0) continue;
+    if (holidays.includes(date)) continue;
+    const SUN = '9-6';
+    if (angel && !isAssigned(angel.id, date)) {
+      schedule.push({ employee_id: angel.id, shift_date: date, shift_type: SUN, is_manual_override: 0 });
+    }
+    for (const emp of lineEmployees) {
+      if (isAssigned(emp.id, date)) continue;
+      if (avMap[emp.id]?.[d] === 'X') continue;
+      if (emp.days_allowed && !JSON.parse(emp.days_allowed).includes(d)) continue;
+      const maxDays = emp.exempt_day_cap ? 3 : 2;
+      if (shiftsThisWeek[emp.id] >= maxDays) continue;
+      const shiftType = emp.is_training ? 'TRAINING' : SUN;
+      if (emp.is_training && shiftsThisWeek[emp.id] >= 2) continue;
+      schedule.push({ employee_id: emp.id, shift_date: date, shift_type: shiftType, is_manual_override: 0 });
+      shiftsThisWeek[emp.id]++;
+    }
+  }
+
+  // --- Main loop: Mon-Sat (Sunday handled above) ---
+  for (let d = 0; d < 7; d++) {
+    const date = addDays(weekStart, d);
+    if (new Date(date + 'T12:00:00Z').getDay() === 0) continue;
     if (holidays.includes(date)) continue;
 
     // --- Manager ---
@@ -227,7 +252,7 @@ function generateSchedule(weekStart, db) {
   }
 
   // --- Ensure both managers hit 35h minimum ---
-  const SHIFT_HRS = { AM: 7, PM: 8, MID: 7, MANAGER: 8, TRAINING: 8, OFF: 0 };
+  const SHIFT_HRS = { AM: 7, PM: 8, MID: 7, MANAGER: 8, TRAINING: 8, '9-6': 9, OFF: 0 };
   function mgrHours(emp) {
     return schedule
       .filter((s) => s.employee_id === emp.id && s.shift_type !== 'OFF')
