@@ -143,17 +143,12 @@ function generateSchedule(weekStart, db) {
       (s) => s.employee_id === angel?.id && s.shift_date === date && shiftCategory(s.shift_type) !== 'OFF'
     );
     if (angelShiftToday) {
-      const LINE_MAX_HRS = 28;
-      const TRAINING_HRS = 8;
       const trainees = lineEmployees.filter((e) => e.is_training);
       for (const trainee of trainees) {
         if (isAssigned(trainee.id, date)) continue;
         const avail = avMap[trainee.id]?.[d];
         if (avail === 'X') continue;
-        const hoursScheduled = schedule
-          .filter((s) => s.employee_id === trainee.id && s.shift_type !== 'OFF')
-          .length * TRAINING_HRS;
-        if (hoursScheduled + TRAINING_HRS > LINE_MAX_HRS) continue;
+        if (shiftsThisWeek[trainee.id] >= 2) continue;
         schedule.push({ employee_id: trainee.id, shift_date: date, shift_type: 'TRAINING', is_manual_override: 0 });
         shiftsThisWeek[trainee.id] = (shiftsThisWeek[trainee.id] || 0) + 1;
       }
