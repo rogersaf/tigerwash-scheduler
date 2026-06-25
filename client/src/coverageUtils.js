@@ -67,6 +67,7 @@ export function computeLiveFlags(dates, shifts, employees, holidays) {
   const flags = [];
   for (const date of dates) {
     if (holidays?.some((h) => h.holiday_date === date)) continue;
+    const isSunday = new Date(date + 'T12:00:00').getDay() === 0;
     const ds = shifts.filter((s) => s.shift_date === date);
     const working = ds.filter((s) => shiftCategory(s.shift_type) !== 'OFF');
     if (working.length === 0) continue;
@@ -76,6 +77,9 @@ export function computeLiveFlags(dates, shifts, employees, holidays) {
 
     if (mgrWorking.length === 0) flags.push({ shift_date: date, issue: 'No manager scheduled' });
     if (lineWorking.length === 0) flags.push({ shift_date: date, issue: 'No line crew scheduled' });
+
+    // Sunday is open-to-close (9-6) — no separate AM/PM checks apply
+    if (isSunday) continue;
 
     const amAll = working.filter((s) => shiftCovers(s.shift_type, 'AM'));
     const amLine = lineWorking.filter((s) => shiftCovers(s.shift_type, 'AM'));
