@@ -9,7 +9,7 @@ function closeHour(date) {
 
 export function parseShiftHours(shiftType, date) {
   if (!shiftType || shiftType === 'OFF') return 0;
-  const STANDARD = { AM: 7, PM: 8, MID: 7, MANAGER: 8 };
+  const STANDARD = { AM: 7, PM: 8, MID: 7, MANAGER: 8, TRAINING: 8 };
   if (STANDARD[shiftType] !== undefined) return STANDARD[shiftType];
 
   const low = shiftType.toLowerCase();

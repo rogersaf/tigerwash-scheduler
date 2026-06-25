@@ -90,7 +90,7 @@ function generateSchedule(weekStart, db) {
       const allowed = JSON.parse(emp.days_allowed);
       if (!allowed.includes(dayIndex)) return false;
     }
-    if (!emp.exempt_day_cap && emp.role === 'line' && shiftsThisWeek[emp.id] >= 2) return false;
+    if (emp.role === 'line' && shiftsThisWeek[emp.id] >= (emp.exempt_day_cap ? 3 : 2)) return false;
     // Trainees shadow Angel specifically — only place them on days Angel is already scheduled
     if (emp.is_training) {
       const angelScheduled = angel && schedule.some(
