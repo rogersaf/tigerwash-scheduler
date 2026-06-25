@@ -179,15 +179,6 @@ function generateSchedule(weekStart, db) {
       }
     }
 
-    // --- Priority employees (exempt_day_cap) get reserved AM slot first ---
-    // Ensures James/Colton always reach their 3-day quota before general candidates compete.
-    const priorityAM = lineEmployees.filter((e) => e.exempt_day_cap && canWork(e, 'AM', d, date));
-    for (const emp of priorityAM.sort((a,b) => shiftsThisWeek[a.id]-shiftsThisWeek[b.id])) {
-      if (shiftsThisWeek[emp.id] >= 3) continue;
-      schedule.push({ employee_id: emp.id, shift_date: date, shift_type: 'AM', is_manual_override: 0 });
-      shiftsThisWeek[emp.id]++;
-    }
-
     // Count manual override coverage for this day (so "7-1" etc. credit toward AM/PM)
     const todayManualLine = schedule.filter(
       (s) => s.shift_date === date && s.is_manual_override &&
