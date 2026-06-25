@@ -114,7 +114,7 @@ function generateSchedule(weekStart, db) {
     for (const emp of lineEmployees) {
       if (isAssigned(emp.id, date)) continue;
       if (avMap[emp.id]?.[d] === 'X') continue;
-      if (emp.days_allowed && !JSON.parse(emp.days_allowed).includes(d)) continue;
+      if (!emp.days_allowed || !JSON.parse(emp.days_allowed).includes(d)) continue;
       const maxDays = emp.exempt_day_cap ? 3 : 2;
       if (shiftsThisWeek[emp.id] >= maxDays) continue;
       const shiftType = emp.is_training ? 'TRAINING' : SUN;
