@@ -1,7 +1,7 @@
 const express = require('express');
 const { getDb } = require('../db');
 const { requireAuth, requireManager } = require('./auth');
-const { wouldBreakCoverage } = require('../engine/scheduler');
+const { wouldBreakCoverage, addDays } = require('../engine/scheduler');
 
 const router = express.Router();
 
@@ -94,14 +94,29 @@ router.put('/manager', requireManager, (req, res) => {
 });
 
 // Manager approves a pending availability row (clears needs_review, optionally adds a note)
+// If the approved mark is X (day off) and a schedule entry exists for that date, remove it.
 router.post('/approve', requireManager, (req, res) => {
   const db = getDb();
   const { employee_id, week_start, day_of_week, manager_note } = req.body;
+
+  const row = db.get(
+    'SELECT mark FROM availability WHERE employee_id = ? AND week_start = ? AND day_of_week = ?',
+    [employee_id, week_start, day_of_week]
+  );
+
   db.run(
     'UPDATE availability SET needs_review = 0, manager_note = ? WHERE employee_id = ? AND week_start = ? AND day_of_week = ?',
     [manager_note || null, employee_id, week_start, day_of_week]
   );
-  res.json({ ok: true });
+
+  let scheduleUpdated = false;
+  if (row?.mark === 'X' && week_start && week_start !== 'recurring') {
+    const shiftDate = addDays(week_start, day_of_week);
+    const del = db.run('DELETE FROM schedule WHERE employee_id = ? AND shift_date = ?', [employee_id, shiftDate]);
+    scheduleUpdated = del.changes > 0;
+  }
+
+  res.json({ ok: true, scheduleUpdated, mark: row?.mark });
 });
 
 // All pending items (needs_review=1) across all employees

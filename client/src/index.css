@@ -391,6 +391,7 @@ body { min-height: 100vh; }
 .shift-other { background: #f1f5f9; color: #94a3b8; }
 .shift-custom { background: #f0fdf4; color: #166534; }
 .shift-manual { box-shadow: 0 0 0 2px var(--primary) inset; }
+.shift-conflict { box-shadow: 0 0 0 2px var(--danger) inset !important; opacity: 0.75; }
 
 /* ── Coverage ── */
 .coverage-strip {

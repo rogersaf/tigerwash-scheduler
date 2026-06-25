@@ -162,6 +162,7 @@ export default function SchedulePage() {
   const [weekStart, setWeekStart] = useState(currentWeekStart());
   const [employees, setEmployees] = useState([]);
   const [schedData, setSchedData] = useState({ shifts: [], flags: [], holidays: [] });
+  const [availData, setAvailData] = useState([]); // all avail rows for current week
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [msg, setMsg] = useState('');
@@ -181,12 +182,42 @@ export default function SchedulePage() {
   async function loadData() {
     setLoading(true); setMsg('');
     try {
-      const [emps, sched] = await Promise.all([api.employees(), api.schedule(weekStart)]);
+      const [emps, sched, avail] = await Promise.all([
+        api.employees(),
+        api.schedule(weekStart),
+        api.availability(weekStart),
+      ]);
       setEmployees(emps.filter((e) => e.active));
       setSchedData(sched);
+      setAvailData(avail);
       setPublished(!!sched.published);
     } catch {}
     setLoading(false);
+  }
+
+  // Get an employee's availability mark for a specific date (0=Mon…6=Sun)
+  function getAvailMark(empId, date) {
+    const dayIdx = dates.findIndex(d => d === date);
+    if (dayIdx === -1) return '';
+    const row = availData.find(r => r.employee_id === empId && r.day_of_week === dayIdx);
+    return row ? row.mark : '';
+  }
+
+  // Returns array of {emp, mark, canAM, canPM} for all active line employees on a date
+  function dayAvailSnapshot(date) {
+    return employees
+      .filter(e => e.role === 'line')
+      .map(emp => {
+        const mark = getAvailMark(emp.id, date);
+        return {
+          emp,
+          mark,
+          off:   mark === 'X',
+          canAM: mark !== 'X' && mark !== 'AM' && !emp.pm_only,
+          canPM: mark !== 'X' && mark !== 'PM' && !emp.am_only,
+        };
+      })
+      .sort((a, b) => (a.off ? 1 : 0) - (b.off ? 1 : 0) || a.emp.name.localeCompare(b.emp.name));
   }
 
   async function handleGenerate() {
@@ -458,7 +489,12 @@ export default function SchedulePage() {
                             <span style={{ fontSize:10, color:'var(--warning)' }}>—</span>
                           ) : shift ? (
                             <div style={{ width:'100%', textAlign:'center' }}>
-                              <div className={`shift-chip ${shiftCls(shift.shift_type)}${shift.is_manual_override ? ' shift-manual' : ''}`}>
+                              {getAvailMark(emp.id, date) === 'X' && (
+                                <div title="Employee marked off this day" style={{ fontSize:10, color:'var(--danger)', fontWeight:700, marginBottom:2 }}>
+                                  ⚠ Off request
+                                </div>
+                              )}
+                              <div className={`shift-chip ${shiftCls(shift.shift_type)}${shift.is_manual_override ? ' shift-manual' : ''}${getAvailMark(emp.id, date) === 'X' ? ' shift-conflict' : ''}`}>
                                 <div style={{ lineHeight: 1.2 }}>{shiftDisplay(shift)}</div>
                                 <div style={{ fontSize: 8, opacity: 0.65, marginTop: 1, letterSpacing: '0.04em' }}>
                                   {shiftCategory(shift.shift_type) === 'MANAGER' ? 'MGR' : shiftCategory(shift.shift_type)}
@@ -555,20 +591,87 @@ export default function SchedulePage() {
           return 'AM';
         }
         const cat = autoCategory(customLabel);
-        // Managers always save as MANAGER type unless explicitly marked off
         function resolveSaveType() {
           const low = customLabel.trim().toLowerCase();
           if (low === 'off' || low === '') return autoCategory(customLabel);
           return overrideModal.emp.role === 'manager' ? 'MANAGER' : autoCategory(customLabel);
         }
         const catLabel = { AM:'Open', PM:'Close', MID:'Mid', MANAGER:'Manager', OFF:'Off' }[overrideModal.emp.role === 'manager' && customLabel.trim().toLowerCase() !== 'off' && customLabel.trim() ? 'MANAGER' : cat];
+
+        // Availability check for this employee on this date
+        const empMark = getAvailMark(overrideModal.emp.id, overrideModal.date);
+        const MARK_DESC = { X: 'marked off — day off', AM: 'no mornings (available PM only)', PM: 'no evenings (available AM only)', MID: 'unavailable for mid shifts' };
+        const isUnavailable = empMark === 'X';
+        const hasRestriction = empMark && empMark !== 'X';
+
+        // Day availability snapshot for all line crew
+        const snapshot = dayAvailSnapshot(overrideModal.date);
+        const amAvail = snapshot.filter(s => s.canAM && !s.off);
+        const pmAvail = snapshot.filter(s => s.canPM && !s.off);
+
         return (
           <div className="modal-backdrop" onClick={() => setOverrideModal(null)}>
-            <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
               <div className="modal-title">
                 Edit Shift — {overrideModal.emp.name}<br />
                 <span style={{ fontSize:13, fontWeight:400, color:'var(--text-muted)' }}>{formatDate(overrideModal.date)}</span>
               </div>
+
+              {/* Unavailability warning */}
+              {isUnavailable && (
+                <div className="alert alert-warning" style={{ marginBottom:12 }}>
+                  ⚠ <strong>{overrideModal.emp.name}</strong> is <strong>not available</strong> this day (day off). You can still override below.
+                </div>
+              )}
+              {hasRestriction && (
+                <div className="alert alert-info" style={{ marginBottom:12 }}>
+                  ℹ {overrideModal.emp.name} is {MARK_DESC[empMark] || empMark}.
+                </div>
+              )}
+
+              {/* Day snapshot — who's available */}
+              <details style={{ marginBottom:12, fontSize:12 }}>
+                <summary style={{ cursor:'pointer', fontWeight:600, color:'var(--text-muted)', marginBottom:4 }}>
+                  👥 Who's available {formatDate(overrideModal.date)}
+                </summary>
+                <div style={{ marginTop:8, display:'flex', gap:12, flexWrap:'wrap' }}>
+                  <div>
+                    <div style={{ fontWeight:700, marginBottom:4, color:'var(--primary)' }}>AM openers</div>
+                    {amAvail.length === 0
+                      ? <span style={{ color:'var(--danger)', fontSize:11 }}>None available</span>
+                      : amAvail.map(s => (
+                          <div key={s.emp.id} style={{ fontSize:11, padding:'2px 0' }}>
+                            <span style={{ color:'var(--success)', marginRight:4 }}>●</span>{s.emp.name}
+                            {s.mark === 'MID' ? <span style={{ color:'var(--text-light)', marginLeft:3 }}>(no mid)</span> : ''}
+                          </div>
+                        ))
+                    }
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:700, marginBottom:4, color:'var(--primary)' }}>PM closers</div>
+                    {pmAvail.length === 0
+                      ? <span style={{ color:'var(--danger)', fontSize:11 }}>None available</span>
+                      : pmAvail.map(s => (
+                          <div key={s.emp.id} style={{ fontSize:11, padding:'2px 0' }}>
+                            <span style={{ color:'var(--success)', marginRight:4 }}>●</span>{s.emp.name}
+                            {s.mark === 'MID' ? <span style={{ color:'var(--text-light)', marginLeft:3 }}>(no mid)</span> : ''}
+                          </div>
+                        ))
+                    }
+                  </div>
+                  {snapshot.filter(s => s.off).length > 0 && (
+                    <div>
+                      <div style={{ fontWeight:700, marginBottom:4, color:'var(--danger)' }}>Off</div>
+                      {snapshot.filter(s => s.off).map(s => (
+                        <div key={s.emp.id} style={{ fontSize:11, padding:'2px 0', color:'var(--text-muted)' }}>
+                          <span style={{ color:'var(--danger)', marginRight:4 }}>✕</span>{s.emp.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </details>
+
               <div className="field">
                 <label>Shift Time</label>
                 <input

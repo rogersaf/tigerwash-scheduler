@@ -30,6 +30,7 @@ export default function ManagerDashboard() {
   const [approvingId, setApprovingId] = useState(null);
   const [noteModal, setNoteModal]   = useState(null); // {row}
   const [noteText, setNoteText]     = useState('');
+  const [msg, setMsg]               = useState('');
 
   async function load() {
     setLoading(true);
@@ -55,10 +56,13 @@ export default function ManagerDashboard() {
   async function handleApprove(row) {
     setApprovingId(`${row.employee_id}-${row.week_start}-${row.day_of_week}`);
     try {
-      await api.approveAvailability(row.employee_id, row.week_start, row.day_of_week);
+      const result = await api.approveAvailability(row.employee_id, row.week_start, row.day_of_week);
       setPending(prev => prev.filter(r =>
         !(r.employee_id === row.employee_id && r.week_start === row.week_start && r.day_of_week === row.day_of_week)
       ));
+      if (result?.scheduleUpdated) {
+        setMsg(`✓ Approved — ${row.employee_name}'s shift on ${safeFmt(row.week_start, row.day_of_week, weekStart)} was removed from the schedule.`);
+      }
     } catch {}
     setApprovingId(null);
   }
@@ -75,10 +79,13 @@ export default function ManagerDashboard() {
   async function handleNoteApprove() {
     if (!noteModal) return;
     try {
-      await api.approveAvailability(noteModal.employee_id, noteModal.week_start, noteModal.day_of_week, noteText);
+      const result = await api.approveAvailability(noteModal.employee_id, noteModal.week_start, noteModal.day_of_week, noteText);
       setPending(prev => prev.filter(r =>
         !(r.employee_id === noteModal.employee_id && r.week_start === noteModal.week_start && r.day_of_week === noteModal.day_of_week)
       ));
+      if (result?.scheduleUpdated) {
+        setMsg(`✓ Approved — ${noteModal.employee_name}'s shift on ${safeFmt(noteModal.week_start, noteModal.day_of_week, weekStart)} was removed from the schedule.`);
+      }
     } catch {}
     setNoteModal(null); setNoteText('');
   }
@@ -111,6 +118,7 @@ export default function ManagerDashboard() {
       </div>
 
       <div className="page-body">
+        {msg && <div className="alert alert-success" style={{ marginBottom:16 }}>{msg}</div>}
         {loading ? <div className="text-muted text-sm">Loading…</div> : (
           <>
             {/* Stats */}
