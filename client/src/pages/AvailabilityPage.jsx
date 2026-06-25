@@ -41,6 +41,7 @@ export default function AvailabilityPage() {
         setMarks({ ...m });
         setSavedMarks({ ...m });
         setCustomText(ct);
+        setIsRecurring(avRows.some((r) => r.source === 'recurring'));
         setHolidays(hols.map((h) => h.holiday_date));
       })
       .catch(() => {})
