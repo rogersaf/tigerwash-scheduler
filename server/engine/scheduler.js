@@ -101,12 +101,16 @@ function generateSchedule(weekStart, db) {
     if (holidays.includes(date)) continue;
 
     // --- Manager ---
-    // Angel is the primary auto-scheduled manager every day she's available.
+    // Angel is the primary auto-scheduled manager — max 5 days/week (2 days off).
     // Nick is NEVER auto-scheduled — his shifts are always manual overrides.
-    // The schedule must be viable with Angel + crew alone; Nick's presence is a bonus.
+    // On Angel's days off, Nick covering is fine and expected; no "primary" label anywhere.
     let managerOn = managerOnDate(date);
 
-    if (!managerOn && angel && !isAssigned(angel.id, date)) {
+    const angelDaysScheduled = schedule.filter(
+      (s) => s.employee_id === angel?.id && shiftCategory(s.shift_type) !== 'OFF'
+    ).length;
+
+    if (!managerOn && angel && angelDaysScheduled < 5 && !isAssigned(angel.id, date)) {
       const a = avMap[angel.id]?.[d];
       if (a !== 'X') {
         schedule.push({ employee_id: angel.id, shift_date: date, shift_type: 'MANAGER', is_manual_override: 0 });
