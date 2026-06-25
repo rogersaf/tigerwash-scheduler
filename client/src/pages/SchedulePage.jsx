@@ -246,12 +246,13 @@ export default function SchedulePage() {
   function openOverrideModal(emp, date) {
     const ex = getShift(emp.id, date);
     setOverrideModal({ emp, date });
-    setOverrideType(ex?.shift_type || 'AM');
-    // Pre-fill with existing custom label, or the standard time label so they can edit from it
-    // If shift_type is a custom value (not a standard key), pre-fill with it directly
+    // Default shift type: managers start at MANAGER, line crew start at AM
+    const defaultType = ex?.shift_type || (emp.role === 'manager' ? 'MANAGER' : 'AM');
+    setOverrideType(defaultType);
     const stdTypes = ['AM', 'PM', 'MID', 'MANAGER', 'OFF'];
     const existing = stdTypes.includes(ex?.shift_type) ? (SHIFT_LABELS[ex?.shift_type] || '') : (ex?.shift_type || '');
-    setCustomLabel(existing);
+    // For a new manager shift with no existing entry, pre-fill with the MANAGER label
+    setCustomLabel(existing || (emp.role === 'manager' && !ex ? SHIFT_LABELS['MANAGER'] : ''));
   }
 
   const weekEnd = addDays(weekStart, 6);
